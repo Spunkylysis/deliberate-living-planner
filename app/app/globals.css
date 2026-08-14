@@ -1,0 +1,36 @@
+@import "tailwindcss";
+
+:root {
+  --ink: #171a21;
+  --panel: #1f232c;
+  --panel-2: #262b35;
+  --line: #333947;
+  --brass: #c9974c;
+  --brass-dim: #8a6a37;
+  --sage: #7fa07a;
+  --paper: #eee8dc;
+  --paper-dim: #a7a190;
+  --danger: #b56258;
+}
+
+@theme inline {
+  --color-ink: var(--ink);
+  --color-panel: var(--panel);
+  --color-panel-2: var(--panel-2);
+  --color-line: var(--line);
+  --color-brass: var(--brass);
+  --color-brass-dim: var(--brass-dim);
+  --color-sage: var(--sage);
+  --color-paper: var(--paper);
+  --color-paper-dim: var(--paper-dim);
+  --color-danger: var(--danger);
+  --font-serif: "Newsreader", serif;
+  --font-mono: "JetBrains Mono", monospace;
+  --font-sans: "Inter", sans-serif;
+}
+
+body {
+  background: var(--ink);
+  color: var(--paper);
+  font-family: var(--font-sans);
+}
