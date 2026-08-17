@@ -6,8 +6,8 @@ const TABS = [
   { href: "/grid", label: "Weekly Grid" },
   { href: "/pantry", label: "Pantry & Meals" },
   { href: "/members", label: "Members" },
-  // Chores, Outlook land here as they're built —
-  // see NEXTJS_PLAN.md for the agreed build order.
+  { href: "/chores", label: "Chores" },
+  // Outlook lands here once built — see NEXTJS_PLAN.md.
 ];
 
 export default async function AppLayout({
