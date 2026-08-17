@@ -5,7 +5,8 @@ import { createClient } from "@/lib/supabase/server";
 const TABS = [
   { href: "/grid", label: "Weekly Grid" },
   { href: "/pantry", label: "Pantry & Meals" },
-  // Chores, Members, Outlook land here as they're built —
+  { href: "/members", label: "Members" },
+  // Chores, Outlook land here as they're built —
   // see NEXTJS_PLAN.md for the agreed build order.
 ];
 
