@@ -29,7 +29,7 @@ export default async function ChoresPage({
   const [{ data: library }, { data: members }, { data: existingInstances }] =
     await Promise.all([
       supabase.from("chore_library").select("*").eq("household_id", householdId),
-      supabase.from("profiles").select("id, display_name, color").eq("household_id", householdId),
+      supabase.from("household_members").select("id, display_name, color").eq("household_id", householdId),
       supabase
         .from("chore_instances")
         .select("*")

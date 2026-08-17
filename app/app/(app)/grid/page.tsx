@@ -32,7 +32,7 @@ export default async function GridPage({
       .eq("household_id", householdId)
       .eq("week_start", weekStart),
     supabase
-      .from("profiles")
+      .from("household_members")
       .select("id, display_name, color")
       .eq("household_id", householdId),
   ]);

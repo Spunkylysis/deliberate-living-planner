@@ -26,13 +26,23 @@ export default async function AppLayout({
 
   const { data: profile } = await supabase
     .from("profiles")
-    .select("household_id, display_name")
+    .select("household_id")
     .eq("id", user.id)
     .single();
 
   if (!profile?.household_id) {
     redirect("/onboarding");
   }
+
+  // household_members is the canonical source for display info now
+  // (name/color/role/etc), not profiles — editing your name in the
+  // Members tab writes there, so the header reads from there too,
+  // rather than risking a stale name if profiles isn't also updated.
+  const { data: myMember } = await supabase
+    .from("household_members")
+    .select("display_name")
+    .eq("profile_id", user.id)
+    .single();
 
   return (
     <div className="min-h-screen">
@@ -44,7 +54,7 @@ export default async function AppLayout({
           <h1 className="font-serif text-2xl">Weekly Planner</h1>
         </div>
         <p className="font-mono text-xs text-paper-dim">
-          {profile.display_name}
+          {myMember?.display_name ?? ""}
         </p>
       </header>
 
