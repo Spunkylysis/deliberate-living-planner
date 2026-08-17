@@ -79,7 +79,7 @@ export default function MembersPanel({
     }
   }
 
-  async function addPlaceholder(data: { display_name: string; color: string; role: string }) {
+  async function addPlaceholder(data: { display_name: string; color: string; role: string; phone: string; email: string }) {
     const supabase = createClient();
     const { data: inserted, error } = await supabase
       .from("household_members")
@@ -88,6 +88,8 @@ export default function MembersPanel({
         display_name: data.display_name,
         color: data.color,
         role: data.role || null,
+        phone: data.phone || null,
+        email: data.email || null,
       })
       .select()
       .single();
@@ -298,24 +300,35 @@ function MemberForm({
   );
 }
 
-function AddPlaceholderForm({ onAdd }: { onAdd: (data: { display_name: string; color: string; role: string }) => void }) {
+function AddPlaceholderForm({ onAdd }: { onAdd: (data: { display_name: string; color: string; role: string; phone: string; email: string }) => void }) {
   const [name, setName] = useState("");
   const [color, setColor] = useState("#7fa07a");
   const [role, setRole] = useState("");
+  const [phone, setPhone] = useState("");
+  const [email, setEmail] = useState("");
 
   function submit() {
     if (!name.trim()) return;
-    onAdd({ display_name: name, color, role });
-    setName(""); setRole("");
+    onAdd({ display_name: name, color, role, phone, email });
+    setName(""); setRole(""); setPhone(""); setEmail("");
   }
 
   return (
     <div className="pt-3 border-t border-line">
       <p className="font-mono text-[10px] uppercase text-brass mb-2">Add a member without a login</p>
+      <p className="font-mono text-[10.5px] text-paper-dim mb-2">
+        Works for a co-parent or roommate too — email/phone here are just
+        contact info, not a login. They can always sign up for their own
+        account later, which links to a fresh row instead of this one.
+      </p>
       <div className="flex gap-2 flex-wrap items-center">
         <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Name…" className="flex-1 min-w-[120px] bg-panel-2 border border-line rounded px-2.5 py-2 text-xs" />
         <input type="color" value={color} onChange={(e) => setColor(e.target.value)} className="w-10 h-9 bg-panel-2 border border-line rounded p-1" />
-        <input value={role} onChange={(e) => setRole(e.target.value)} placeholder="Role (e.g. Kid)" className="w-32 bg-panel-2 border border-line rounded px-2.5 py-2 text-xs" />
+        <input value={role} onChange={(e) => setRole(e.target.value)} placeholder="Role (e.g. Kid, Roommate)" className="w-40 bg-panel-2 border border-line rounded px-2.5 py-2 text-xs" />
+      </div>
+      <div className="flex gap-2 flex-wrap items-center mt-2">
+        <input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="Phone (optional)" className="flex-1 min-w-[140px] bg-panel-2 border border-line rounded px-2.5 py-2 text-xs" />
+        <input value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Email (optional, contact only)" className="flex-1 min-w-[180px] bg-panel-2 border border-line rounded px-2.5 py-2 text-xs" />
         <button onClick={submit} className="rounded bg-brass-dim px-3 py-2 text-xs hover:bg-brass">Add</button>
       </div>
     </div>

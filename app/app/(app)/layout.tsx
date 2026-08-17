@@ -5,9 +5,11 @@ import { createClient } from "@/lib/supabase/server";
 const TABS = [
   { href: "/grid", label: "Weekly Grid" },
   { href: "/pantry", label: "Pantry & Meals" },
-  { href: "/members", label: "Members" },
   { href: "/chores", label: "Chores" },
   // Outlook lands here once built — see NEXTJS_PLAN.md.
+  { href: "/settings", label: "Settings" }, // rightmost, deliberately —
+  // holds Members today, and is where future preferences (calorie
+  // display toggle, theme, etc.) will live as they're built.
 ];
 
 export default async function AppLayout({
@@ -34,14 +36,14 @@ export default async function AppLayout({
     redirect("/onboarding");
   }
 
-  // household_members is the canonical source for display info now
-  // (name/color/role/etc), not profiles — editing your name in the
-  // Members tab writes there, so the header reads from there too,
-  // rather than risking a stale name if profiles isn't also updated.
-  const { data: myMember } = await supabase
-    .from("household_members")
-    .select("display_name")
-    .eq("profile_id", user.id)
+  // Header shows the household/family name, not the individual's own
+  // name — this is a shared planner, so the identity that matters at
+  // a glance is "whose household is this," not "who's currently logged
+  // in." Individual identity still shows inside Settings > Your Profile.
+  const { data: household } = await supabase
+    .from("households")
+    .select("name")
+    .eq("id", profile!.household_id)
     .single();
 
   return (
@@ -54,7 +56,7 @@ export default async function AppLayout({
           <h1 className="font-serif text-2xl">Weekly Planner</h1>
         </div>
         <p className="font-mono text-xs text-paper-dim">
-          {myMember?.display_name ?? ""}
+          {household?.name ?? ""}
         </p>
       </header>
 
