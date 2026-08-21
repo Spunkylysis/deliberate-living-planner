@@ -12,7 +12,8 @@ type BlockType =
   | "mealprep"
   | "hobby"
   | "project"
-  | "appointment";
+  | "appointment"
+  | "work";
 
 type Block = {
   id?: string;
@@ -27,6 +28,16 @@ type Block = {
   done: boolean;
 };
 
+type RecurringTemplate = {
+  id: string;
+  day_of_week: DayOfWeek;
+  time_block: TimeBlock;
+  type: BlockType;
+  title: string;
+  note: string | null;
+  assigned_member: string | null;
+};
+
 type Member = { id: string; display_name: string; color: string };
 
 const TYPE_STYLES: Record<BlockType, string> = {
@@ -36,6 +47,7 @@ const TYPE_STYLES: Record<BlockType, string> = {
   hobby: "bg-danger/10 [&_.title]:text-[#d98d82]",
   project: "bg-[#7882a0]/15 [&_.title]:text-[#9aa6d6]",
   appointment: "bg-danger/15 border border-danger/35 [&_.title]:text-[#e2857a]",
+  work: "bg-[#5b6b8c]/25 border border-[#5b6b8c]/40 [&_.title]:text-[#9fb3d9]",
 };
 
 export default function WeeklyGrid({
@@ -43,14 +55,17 @@ export default function WeeklyGrid({
   weekStart,
   initialBlocks,
   members,
+  initialTemplates,
 }: {
   householdId: string;
   weekStart: string;
   initialBlocks: Block[];
   members: Member[];
+  initialTemplates: RecurringTemplate[];
 }) {
   const router = useRouter();
   const [blocks, setBlocks] = useState<Block[]>(initialBlocks);
+  const [templates, setTemplates] = useState<RecurringTemplate[]>(initialTemplates);
   const [saving, setSaving] = useState(false);
   const [editing, setEditing] = useState<{
     day: DayOfWeek;
@@ -62,6 +77,10 @@ export default function WeeklyGrid({
 
   function blockAt(day: DayOfWeek, block: TimeBlock) {
     return blocks.find((b) => b.day_of_week === day && b.time_block === block);
+  }
+
+  function templateAt(day: DayOfWeek, block: TimeBlock) {
+    return templates.find((t) => t.day_of_week === day && t.time_block === block);
   }
 
   function memberOf(id: string | null) {
@@ -79,13 +98,19 @@ export default function WeeklyGrid({
     note: string;
     assigned_member: string;
     done: boolean;
+    repeatWeekly: boolean;
   }) {
     if (!editing) return;
     setSaving(true);
     const supabase = createClient();
+    const existingTemplate = templateAt(editing.day, editing.block);
 
     if (!data.title.trim()) {
-      // Empty title = clear the block
+      // Empty title = clear only THIS WEEK's block. Deliberately does
+      // NOT touch any recurring template — skipping one week (a
+      // holiday, a day off) shouldn't silently kill the recurrence for
+      // every future week. To actually stop recurring, uncheck "Repeat
+      // this every week" and Save instead of clearing.
       await supabase
         .from("weekly_blocks")
         .delete()
@@ -133,11 +158,42 @@ export default function WeeklyGrid({
         newBlock,
       ]);
     }
+
+    // Recurring template: create/update if checked, remove if unchecked
+    if (data.repeatWeekly) {
+      const { data: upsertedTemplate } = await supabase
+        .from("recurring_block_templates")
+        .upsert(
+          {
+            household_id: householdId,
+            day_of_week: editing.day,
+            time_block: editing.block,
+            type: data.type,
+            title: data.title,
+            note: data.note || null,
+            assigned_member: data.assigned_member || null,
+          },
+          { onConflict: "household_id,day_of_week,time_block" }
+        )
+        .select()
+        .single();
+      if (upsertedTemplate) {
+        setTemplates((prev) => [
+          ...prev.filter((t) => !(t.day_of_week === editing.day && t.time_block === editing.block)),
+          upsertedTemplate,
+        ]);
+      }
+    } else if (existingTemplate) {
+      await supabase.from("recurring_block_templates").delete().eq("id", existingTemplate.id);
+      setTemplates((prev) => prev.filter((t) => t.id !== existingTemplate.id));
+    }
+
     setSaving(false);
     setEditing(null);
   }
 
   const current = editing ? blockAt(editing.day, editing.block) : undefined;
+  const currentTemplate = editing ? templateAt(editing.day, editing.block) : undefined;
 
   return (
     <div>
@@ -182,16 +238,25 @@ export default function WeeklyGrid({
               {DOW.map((day) => {
                 const b = blockAt(day, block);
                 const member = b ? memberOf(b.assigned_member) : null;
+                const hasTemplate = !!templateAt(day, block);
                 return (
                   <div key={day + block} className="bg-panel p-2 min-h-[78px]">
                     <button
                       onClick={() => setEditing({ day, block })}
-                      className={`w-full h-full text-left rounded p-1.5 text-[12.5px] leading-snug border border-transparent hover:border-brass ${
+                      className={`w-full h-full text-left rounded p-1.5 text-[12.5px] leading-snug border border-transparent hover:border-brass relative ${
                         b
                           ? TYPE_STYLES[b.type]
                           : "text-paper-dim italic flex items-center justify-center border-dashed border-line"
                       } ${b?.done ? "opacity-55" : ""}`}
                     >
+                      {hasTemplate && (
+                        <span
+                          className="absolute top-1 right-1 font-mono text-[9px] text-brass"
+                          title="Repeats every week"
+                        >
+                          ↻
+                        </span>
+                      )}
                       {b ? (
                         <>
                           <div className="title font-semibold">{b.title}</div>
@@ -222,6 +287,7 @@ export default function WeeklyGrid({
         <BlockModal
           dayLabel={`${editing.day} · ${editing.block}`}
           initial={current}
+          initialTemplate={currentTemplate}
           members={members}
           saving={saving}
           onCancel={() => setEditing(null)}
@@ -235,6 +301,7 @@ export default function WeeklyGrid({
 function BlockModal({
   dayLabel,
   initial,
+  initialTemplate,
   members,
   saving,
   onCancel,
@@ -242,6 +309,7 @@ function BlockModal({
 }: {
   dayLabel: string;
   initial?: Block;
+  initialTemplate?: RecurringTemplate;
   members: Member[];
   saving: boolean;
   onCancel: () => void;
@@ -251,15 +319,17 @@ function BlockModal({
     note: string;
     assigned_member: string;
     done: boolean;
+    repeatWeekly: boolean;
   }) => void;
 }) {
-  const [type, setType] = useState<BlockType>(initial?.type ?? "other");
-  const [title, setTitle] = useState(initial?.title ?? "");
-  const [note, setNote] = useState(initial?.note ?? "");
+  const [type, setType] = useState<BlockType>(initial?.type ?? initialTemplate?.type ?? "other");
+  const [title, setTitle] = useState(initial?.title ?? initialTemplate?.title ?? "");
+  const [note, setNote] = useState(initial?.note ?? initialTemplate?.note ?? "");
   const [assignedMember, setAssignedMember] = useState(
-    initial?.assigned_member ?? ""
+    initial?.assigned_member ?? initialTemplate?.assigned_member ?? ""
   );
   const [done, setDone] = useState(initial?.done ?? false);
+  const [repeatWeekly, setRepeatWeekly] = useState(!!initialTemplate);
 
   return (
     <div className="fixed inset-0 bg-black/60 flex items-center justify-center p-4 z-50">
@@ -275,6 +345,7 @@ function BlockModal({
           className="w-full bg-panel-2 border border-line rounded px-2.5 py-2 text-sm"
         >
           <option value="other">General</option>
+          <option value="work">Work</option>
           <option value="workout">Workout</option>
           <option value="mealprep">Meal Prep</option>
           <option value="hobby">Creative / Hobby</option>
@@ -328,12 +399,27 @@ function BlockModal({
           Mark done
         </label>
 
+        <label className="flex items-center gap-2 mt-2 text-sm">
+          <input
+            type="checkbox"
+            checked={repeatWeekly}
+            onChange={(e) => setRepeatWeekly(e.target.checked)}
+            className="accent-brass"
+          />
+          Repeat this every week
+        </label>
+        <p className="font-mono text-[10px] text-paper-dim mt-1 ml-6">
+          Good for a fixed work shift or anything on a set schedule.
+          &quot;Clear&quot; below only skips this one week — to stop it
+          recurring for good, uncheck this box and Save instead.
+        </p>
+
         <div className="flex justify-between mt-4 gap-2">
           <div className="flex gap-2">
             <button
               disabled={saving}
               onClick={() =>
-                onSave({ type, title, note, assigned_member: assignedMember, done })
+                onSave({ type, title, note, assigned_member: assignedMember, done, repeatWeekly })
               }
               className="rounded px-3.5 py-2 text-xs bg-brass-dim hover:bg-brass disabled:opacity-50"
             >
@@ -346,7 +432,7 @@ function BlockModal({
               Cancel
             </button>
           </div>
-          {initial && (
+          {(initial || initialTemplate) && (
             <button
               onClick={() =>
                 onSave({
@@ -355,6 +441,7 @@ function BlockModal({
                   note: "",
                   assigned_member: "",
                   done: false,
+                  repeatWeekly: false,
                 })
               }
               className="rounded px-3.5 py-2 text-xs border border-line text-paper-dim hover:border-danger hover:text-danger"
