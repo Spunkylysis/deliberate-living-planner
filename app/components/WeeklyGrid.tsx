@@ -38,6 +38,15 @@ type RecurringTemplate = {
   assigned_member: string | null;
 };
 
+type Preset = {
+  id: string;
+  label: string;
+  type: BlockType;
+  title: string;
+  note: string | null;
+  assigned_member: string | null;
+};
+
 type Member = { id: string; display_name: string; color: string };
 
 const TYPE_STYLES: Record<BlockType, string> = {
@@ -56,16 +65,19 @@ export default function WeeklyGrid({
   initialBlocks,
   members,
   initialTemplates,
+  initialPresets,
 }: {
   householdId: string;
   weekStart: string;
   initialBlocks: Block[];
   members: Member[];
   initialTemplates: RecurringTemplate[];
+  initialPresets: Preset[];
 }) {
   const router = useRouter();
   const [blocks, setBlocks] = useState<Block[]>(initialBlocks);
   const [templates, setTemplates] = useState<RecurringTemplate[]>(initialTemplates);
+  const [presets, setPresets] = useState<Preset[]>(initialPresets);
   const [saving, setSaving] = useState(false);
   const [editing, setEditing] = useState<{
     day: DayOfWeek;
@@ -99,6 +111,7 @@ export default function WeeklyGrid({
     assigned_member: string;
     done: boolean;
     repeatWeekly: boolean;
+    saveAsPresetLabel: string;
   }) {
     if (!editing) return;
     setSaving(true);
@@ -186,6 +199,22 @@ export default function WeeklyGrid({
     } else if (existingTemplate) {
       await supabase.from("recurring_block_templates").delete().eq("id", existingTemplate.id);
       setTemplates((prev) => prev.filter((t) => t.id !== existingTemplate.id));
+    }
+
+    if (data.saveAsPresetLabel.trim()) {
+      const { data: insertedPreset } = await supabase
+        .from("block_presets")
+        .insert({
+          household_id: householdId,
+          label: data.saveAsPresetLabel.trim(),
+          type: data.type,
+          title: data.title,
+          note: data.note || null,
+          assigned_member: data.assigned_member || null,
+        })
+        .select()
+        .single();
+      if (insertedPreset) setPresets((prev) => [...prev, insertedPreset]);
     }
 
     setSaving(false);
@@ -289,6 +318,7 @@ export default function WeeklyGrid({
           initial={current}
           initialTemplate={currentTemplate}
           members={members}
+          presets={presets}
           saving={saving}
           onCancel={() => setEditing(null)}
           onSave={saveBlock}
@@ -303,6 +333,7 @@ function BlockModal({
   initial,
   initialTemplate,
   members,
+  presets,
   saving,
   onCancel,
   onSave,
@@ -311,6 +342,7 @@ function BlockModal({
   initial?: Block;
   initialTemplate?: RecurringTemplate;
   members: Member[];
+  presets: Preset[];
   saving: boolean;
   onCancel: () => void;
   onSave: (data: {
@@ -320,6 +352,7 @@ function BlockModal({
     assigned_member: string;
     done: boolean;
     repeatWeekly: boolean;
+    saveAsPresetLabel: string;
   }) => void;
 }) {
   const [type, setType] = useState<BlockType>(initial?.type ?? initialTemplate?.type ?? "other");
@@ -330,11 +363,40 @@ function BlockModal({
   );
   const [done, setDone] = useState(initial?.done ?? false);
   const [repeatWeekly, setRepeatWeekly] = useState(!!initialTemplate);
+  const [saveAsPreset, setSaveAsPreset] = useState(false);
+  const [presetLabel, setPresetLabel] = useState("");
+
+  function loadPreset(presetId: string) {
+    const p = presets.find((x) => x.id === presetId);
+    if (!p) return;
+    setType(p.type);
+    setTitle(p.title);
+    setNote(p.note ?? "");
+    setAssignedMember(p.assigned_member ?? "");
+  }
 
   return (
     <div className="fixed inset-0 bg-black/60 flex items-center justify-center p-4 z-50">
-      <div className="bg-panel border border-brass-dim rounded-lg p-5 w-full max-w-sm">
+      <div className="bg-panel border border-brass-dim rounded-lg p-5 w-full max-w-sm max-h-[90vh] overflow-y-auto">
         <h3 className="font-serif text-lg mb-3">{dayLabel}</h3>
+
+        {presets.length > 0 && (
+          <>
+            <label className="font-mono text-[10px] uppercase tracking-wide text-brass block mt-2 mb-1">
+              Load a saved shift/block
+            </label>
+            <select
+              defaultValue=""
+              onChange={(e) => { if (e.target.value) loadPreset(e.target.value); }}
+              className="w-full bg-panel-2 border border-brass-dim rounded px-2.5 py-2 text-sm mb-2"
+            >
+              <option value="">— pick one to fill the fields below —</option>
+              {presets.map((p) => (
+                <option key={p.id} value={p.id}>{p.label}</option>
+              ))}
+            </select>
+          </>
+        )}
 
         <label className="font-mono text-[10px] uppercase tracking-wide text-paper-dim block mt-2 mb-1">
           Type
@@ -409,17 +471,45 @@ function BlockModal({
           Repeat this every week
         </label>
         <p className="font-mono text-[10px] text-paper-dim mt-1 ml-6">
-          Good for a fixed work shift or anything on a set schedule.
-          &quot;Clear&quot; below only skips this one week — to stop it
-          recurring for good, uncheck this box and Save instead.
+          For a fixed weekly pattern only — same day, every week.
+          &quot;Clear&quot; below only skips this one week; uncheck and Save
+          to stop it recurring for good.
         </p>
+
+        <label className="flex items-center gap-2 mt-3 text-sm">
+          <input
+            type="checkbox"
+            checked={saveAsPreset}
+            onChange={(e) => setSaveAsPreset(e.target.checked)}
+            className="accent-brass"
+          />
+          Save as a reusable block
+        </label>
+        {saveAsPreset && (
+          <>
+            <input
+              value={presetLabel}
+              onChange={(e) => setPresetLabel(e.target.value)}
+              placeholder='e.g., "PA Shift 10-4"'
+              className="w-full bg-panel-2 border border-line rounded px-2.5 py-2 text-sm mt-2"
+            />
+            <p className="font-mono text-[10px] text-paper-dim mt-1">
+              For a schedule that doesn&apos;t fall on the same day every
+              week — save once, then drop it into whichever day it lands
+              on, in two clicks.
+            </p>
+          </>
+        )}
 
         <div className="flex justify-between mt-4 gap-2">
           <div className="flex gap-2">
             <button
               disabled={saving}
               onClick={() =>
-                onSave({ type, title, note, assigned_member: assignedMember, done, repeatWeekly })
+                onSave({
+                  type, title, note, assigned_member: assignedMember, done,
+                  repeatWeekly, saveAsPresetLabel: saveAsPreset ? presetLabel : "",
+                })
               }
               className="rounded px-3.5 py-2 text-xs bg-brass-dim hover:bg-brass disabled:opacity-50"
             >
@@ -442,6 +532,7 @@ function BlockModal({
                   assigned_member: "",
                   done: false,
                   repeatWeekly: false,
+                  saveAsPresetLabel: "",
                 })
               }
               className="rounded px-3.5 py-2 text-xs border border-line text-paper-dim hover:border-danger hover:text-danger"

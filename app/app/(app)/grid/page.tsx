@@ -2,8 +2,10 @@ import { createClient } from "@/lib/supabase/server";
 import { DOW, isoMonday, isoKey } from "@/lib/weekUtils";
 import { choreAppliesOnDay } from "@/lib/choreUtils";
 import type { ChoreLibraryItem } from "@/lib/choreUtils";
+import { pickForToday, WELLBEING_REMINDERS } from "@/lib/dailyContent";
 import WeeklyGrid from "@/components/WeeklyGrid";
 import WeekChoresSummary from "@/components/WeekChoresSummary";
+import DailyInspiration from "@/components/DailyInspiration";
 
 export default async function GridPage({
   searchParams,
@@ -32,6 +34,8 @@ export default async function GridPage({
     { data: blocks },
     { data: members },
     { data: templates },
+    { data: presets },
+    { data: quotes },
     { data: choreLibrary },
     { data: choreInstances },
   ] = await Promise.all([
@@ -48,6 +52,12 @@ export default async function GridPage({
       .from("recurring_block_templates")
       .select("*")
       .eq("household_id", householdId),
+    supabase
+      .from("block_presets")
+      .select("*")
+      .eq("household_id", householdId)
+      .order("label"),
+    supabase.from("quotes").select("id, text, author, source_type"),
     supabase.from("chore_library").select("*").eq("household_id", householdId),
     supabase
       .from("chore_instances")
@@ -129,14 +139,24 @@ export default async function GridPage({
     }
   }
 
+  const today = new Date();
+  const todaysQuote = quotes ? pickForToday(quotes, today) : null;
+  const todaysReminder = pickForToday(WELLBEING_REMINDERS, today);
+
   return (
     <div className="flex flex-col gap-6">
+      <DailyInspiration
+        householdId={householdId}
+        todaysQuote={todaysQuote}
+        todaysReminder={todaysReminder}
+      />
       <WeeklyGrid
         householdId={householdId}
         weekStart={weekStart}
         initialBlocks={finalBlocks}
         members={members ?? []}
         initialTemplates={templates ?? []}
+        initialPresets={presets ?? []}
       />
       <WeekChoresSummary
         library={choreLibrary ?? []}
