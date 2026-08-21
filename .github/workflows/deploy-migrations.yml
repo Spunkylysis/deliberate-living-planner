@@ -1,16 +1,22 @@
 name: Deploy Supabase Migrations
 
-# Runs whenever a migration file changes on main. Requires three repo
-# secrets (Settings > Secrets and variables > Actions):
+# Currently DISABLED from auto-running. Every migration in this project
+# has actually been applied directly (via a live Supabase connection)
+# and independently verified after each one — this workflow has never
+# been the thing actually deploying anything, so its automatic failure
+# on every push (missing the 3 secrets below) was pure noise, not a
+# real problem. Left in place, manually triggerable, in case it's ever
+# worth setting up for real — e.g. if someone other than the person
+# doing this manual verification starts contributing.
+#
+# To actually enable auto-deploy on push again: add these 3 repo
+# secrets (Settings > Secrets and variables > Actions), then move
+# the "on: push" block back in below workflow_dispatch:
 #   SUPABASE_ACCESS_TOKEN  — from supabase.com/dashboard/account/tokens
 #   SUPABASE_PROJECT_ID    — the project ref, e.g. abcdefghijklmnop
 #   SUPABASE_DB_PASSWORD   — the database password set when the project was created
 
 on:
-  push:
-    branches: [main]
-    paths:
-      - 'supabase/migrations/**'
   workflow_dispatch: {}
 
 jobs:
