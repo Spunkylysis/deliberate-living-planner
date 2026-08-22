@@ -1,7 +1,10 @@
 import { type NextRequest } from "next/server";
 import { updateSession } from "@/lib/supabase/middleware";
 
-export async function proxy(request: NextRequest) {
+// Next.js 15's convention: middleware.ts at the project root, named
+// export "middleware" (not "proxy" -- that's a Next.js 16-only
+// convention this project no longer uses after downgrading).
+export async function middleware(request: NextRequest) {
   return await updateSession(request);
 }
 
